@@ -16,32 +16,25 @@ class LFUCache(BaseCaching):
         self.counter = {}
 
     def put(self, key: Any, item: Any) -> None:
-        """ Adds data to cache based on LFU policy
+        """ Adds data to cache based on LRU policy
             - Args:
                 - key: new entry's key
                 - item: entry's value
         """
         if not key or not item:
             return
-
-        if key in self.cache_data:
-            # Update existing item's frequency
-            self.counter[key] += 1
-        else:
-            # If the cache is full, remove the LFU or LRU item
-            if len(self.cache_data) >= self.MAX_ITEMS:
-                lfu_key = min(self.counter, key=lambda k: (self.counter[k], self.timestamps[k]))
-                self.cache_data.pop(lfu_key)
-                self.counter.pop(lfu_key)
-                self.timestamps.pop(lfu_key)
-
-            # Add the new item
-            self.counter[key] = 1
-            self.timestamps[key] = self.timestamp
-            self.timestamp += 1
-
-        # Update the item in the cache
-        self.cache_data[key] = item
+        counter = self.counter
+        new_cache_data = {key: item}
+        old_cache_data = self.cache_data.get(key)
+        if len(self.cache_data) == self.MAX_ITEMS and not old_cache_data:
+            key_to_remove = list(counter.keys())[0]
+            self.cache_data.pop(key_to_remove)
+            counter.pop(key_to_remove)
+            print(f'DISCARD: {key_to_remove}')
+        self.cache_data.update(new_cache_data)
+        counter.update({key: counter.get(key, 0) + 1})
+        counter = dict(sorted(counter.items(),
+                              key=lambda x: (x[1], x[0])))
 
     def get(self, key: Any) -> Optional[Any]:
         """ Gets cache data associated with given key
@@ -52,10 +45,9 @@ class LFUCache(BaseCaching):
                 - value associated with the key
         """
         cache_item = self.cache_data.get(key)
+        counter = self.counter
         if cache_item:
-            # Update the item's frequency and timestamp
-            self.counter[key] += 1
-            self.timestamps[key] = self.timestamp
-            self.timestamp += 1
-
+            counter.update({key: counter.get(key) + 1})
+            counter = dict(sorted(counter.items(),
+                                  key=lambda x: (x[1], x[0])))
         return cache_item
